@@ -734,11 +734,12 @@
 
   <script>
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/pwa/sw.js')
+    navigator.serviceWorker.register('/voicetest/sw.js')
       .then(() => console.log('Service Worker registrado'))
       .catch((err) => console.log('Error registrando SW:', err));
   }
 </script>
 
 </body>
+
 </html>
