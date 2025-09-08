@@ -1,10 +1,10 @@
 const cacheName = "mi-pwa-cache-v1";
 const filesToCache = [
   "/",
-  "/pwa/index.html",
-  "/pwa/manifest.json",
-  "/pwa/icon-192.png",
-  "/pwa/icon-512.png"
+  "/voicetest/index.html",
+  "/voicetest/manifest.json",
+  "/voicetest/icon-192.png",
+  "/voicetest/icon-512.png"
 ];
 
 
@@ -29,3 +29,4 @@ self.addEventListener("fetch", (event) => {
     caches.match(event.request).then((response) => response || fetch(event.request))
   );
 });
+
