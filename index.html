@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minecraft Voice Chat - Servidor P2P</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="manifest" href="/pwa/manifest.json">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      image-rendering: pixelated;
+    }
+
+    body {
+      font-family: 'Press Start 2P', monospace;
+      background: linear-gradient(180deg, #87CEEB 0%, #98FB98 30%, #228B22 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Efectos de fondo tipo Minecraft */
+    body::before {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: 
+        repeating-linear-gradient(
+          0deg,
+          transparent 0px,
+          rgba(255,255,255,0.03) 1px,
+          transparent 2px
+        ),
+        repeating-linear-gradient(
+          90deg,
+          transparent 0px,
+          rgba(255,255,255,0.03) 1px,
+          transparent 2px
+        );
+      pointer-events: none;
+    }
+
+    .floating-blocks {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .block {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      background: #8B4513;
+      border: 2px solid #654321;
+      animation: float 10s infinite linear;
+    }
+
+    .block:nth-child(1) { left: 10%; animation-delay: 0s; background: #228B22; }
+    .block:nth-child(2) { left: 20%; animation-delay: 2s; background: #8B4513; }
+    .block:nth-child(3) { left: 30%; animation-delay: 4s; background: #808080; }
+    .block:nth-child(4) { left: 40%; animation-delay: 6s; background: #32CD32; }
+    .block:nth-child(5) { left: 50%; animation-delay: 8s; background: #6495ED; }
+    .block:nth-child(6) { left: 60%; animation-delay: 1s; background: #FFD700; }
+    .block:nth-child(7) { left: 70%; animation-delay: 3s; background: #DC143C; }
+    .block:nth-child(8) { left: 80%; animation-delay: 5s; background: #FF4500; }
+    .block:nth-child(9) { left: 90%; animation-delay: 7s; background: #4B0082; }
+
+    @keyframes float {
+      from { transform: translateY(100vh) rotate(0deg); }
+      to { transform: translateY(-100px) rotate(360deg); }
+    }
+
+    .chat-container {
+      background: linear-gradient(145deg, #2F2F2F, #1a1a1a);
+      border: 4px solid #4a4a4a;
+      box-shadow: 
+        inset 2px 2px 0 rgba(255,255,255,0.1),
+        inset -2px -2px 0 rgba(0,0,0,0.5),
+        0 8px 16px rgba(0,0,0,0.3);
+      padding: 20px;
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+      position: relative;
+      z-index: 10;
+    }
+
+    .title {
+      color: #55FF55;
+      text-shadow: 2px 2px 0 #003300;
+      margin-bottom: 20px;
+      font-size: 12px;
+      animation: glow 2s ease-in-out infinite alternate;
+    }
+
+    @keyframes glow {
+      from { text-shadow: 2px 2px 0 #003300, 0 0 10px #55FF55; }
+      to { text-shadow: 2px 2px 0 #003300, 0 0 20px #55FF55, 0 0 30px #55FF55; }
+    }
+
+    .status-panel {
+      background: #000;
+      border: 2px solid #333;
+      margin-bottom: 16px;
+      padding: 12px;
+      color: #55FF55;
+      text-shadow: 1px 1px 0 #003300;
+      font-size: 8px;
+      position: relative;
+    }
+
+    .status-panel.disconnected {
+      color: #FF5555;
+      text-shadow: 1px 1px 0 #330000;
+    }
+
+    .status-panel.connected {
+      color: #55FF55;
+      text-shadow: 1px 1px 0 #003300;
+    }
+
+    .status-panel::before {
+      content: '█';
+      position: absolute;
+      left: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      animation: blink 1s infinite;
+    }
+
+    .status-panel.disconnected::before {
+      color: #FF5555;
+    }
+
+    .status-panel.connected::before {
+      color: #55FF55;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .mc-button {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 8px;
+      padding: 12px 16px;
+      border: none;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.1s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: white;
+      text-shadow: 2px 2px 0 rgba(0,0,0,0.5);
+    }
+
+    .mc-button:before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(145deg, #4a4a4a, #2a2a2a);
+      border: 2px solid #666;
+      box-shadow: 
+        inset 2px 2px 0 rgba(255,255,255,0.2),
+        inset -2px -2px 0 rgba(0,0,0,0.5);
+    }
+
+    .mc-button:hover:not(:disabled):before {
+      background: linear-gradient(145deg, #5a5a5a, #3a3a3a);
+      border-color: #777;
+    }
+
+    .mc-button:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    .mc-button:active:not(:disabled):before {
+      box-shadow: 
+        inset 2px 2px 0 rgba(0,0,0,0.3),
+        inset -2px -2px 0 rgba(255,255,255,0.1);
+    }
+
+    .mc-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .mc-button span {
+      position: relative;
+      z-index: 1;
+    }
+
+    #joinBtn:before {
+      background: linear-gradient(145deg, #228B22, #006400);
+      border-color: #32CD32;
+    }
+
+    #joinBtn:hover:not(:disabled):before {
+      background: linear-gradient(145deg, #32CD32, #228B22);
+    }
+
+    .mic-controls {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .mic-controls.show {
+      display: flex;
+    }
+
+    #micBtn:before {
+      background: linear-gradient(145deg, #1E90FF, #0066CC);
+      border-color: #87CEEB;
+    }
+
+    #micBtn.muted:before {
+      background: linear-gradient(145deg, #DC143C, #B22222);
+      border-color: #FF6B6B;
+    }
+
+    #micBtn:hover:not(:disabled):before {
+      background: linear-gradient(145deg, #4169E1, #1E90FF);
+    }
+
+    #micBtn.muted:hover:not(:disabled):before {
+      background: linear-gradient(145deg, #FF6B6B, #DC143C);
+    }
+
+    #leaveBtn:before {
+      background: linear-gradient(145deg, #696969, #2F2F2F);
+      border-color: #808080;
+    }
+
+    .health-bar {
+      width: 100%;
+      height: 12px;
+      background: #000;
+      border: 2px solid #333;
+      margin-top: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .health-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #228B22, #32CD32, #FFD700, #FF4500, #DC143C);
+      width: 0%;
+      transition: width 0.1s ease;
+      position: relative;
+    }
+
+    .health-fill::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: repeating-linear-gradient(
+        90deg,
+        transparent 0px,
+        rgba(255,255,255,0.3) 2px,
+        transparent 4px
+      );
+    }
+
+    .participants-panel {
+      margin-top: 16px;
+      display: none;
+      background: #000;
+      border: 2px solid #333;
+      padding: 12px;
+    }
+
+    .participants-panel.show {
+      display: block;
+    }
+
+    .participants-title {
+      color: #FFFF55;
+      text-shadow: 1px 1px 0 #333300;
+      margin-bottom: 8px;
+      font-size: 8px;
+    }
+
+    .player-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .player {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      padding: 6px;
+      color: #AAAAAA;
+      font-size: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .player.speaking {
+      background: #003300;
+      color: #55FF55;
+      border-color: #228B22;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 rgba(85, 255, 85, 0.7); }
+      50% { box-shadow: 0 0 8px rgba(85, 255, 85, 0.7); }
+      100% { box-shadow: 0 0 0 rgba(85, 255, 85, 0.7); }
+    }
+
+    .player-name {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .player-head {
+      width: 12px;
+      height: 12px;
+      background: #8B4513;
+      border: 1px solid #654321;
+      display: inline-block;
+    }
+
+    .player-status {
+      font-size: 6px;
+    }
+
+    .coordinate-display {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.8);
+      color: #FFFFFF;
+      padding: 4px 8px;
+      font-size: 6px;
+      border: 1px solid #333;
+    }
+
+    .inventory-slot {
+      width: 32px;
+      height: 32px;
+      background: #8B8B8B;
+      border: 2px solid #C6C6C6;
+      box-shadow: 
+        inset 2px 2px 0 rgba(255,255,255,0.3),
+        inset -2px -2px 0 rgba(0,0,0,0.3);
+      display: inline-block;
+      margin: 2px;
+      position: relative;
+    }
+
+    .item-microphone {
+      background: linear-gradient(145deg, #1E90FF, #0066CC);
+      width: 24px;
+      height: 24px;
+      margin: 2px;
+      border: 1px solid #87CEEB;
+    }
+
+    .item-microphone.muted {
+      background: linear-gradient(145deg, #DC143C, #B22222);
+      border-color: #FF6B6B;
+    }
+  </style>
+</head>
+<body>
+  <div class="floating-blocks">
+    <div class="block"></div>
+    <div class="block"></div>
+    <div class="block"></div>
+    <div class="block"></div>
+    <div class="block"></div>
+    <div class="block"></div>
+    <div class="block"></div>
+    <div class="block"></div>
+    <div class="block"></div>
+  </div>
+
+  <div class="coordinate-display">
+    X: 128 Y: 64 Z: 256
+  </div>
+
+  <div class="chat-container">
+    <h1 class="title">⛏️ MINECRAFT VOICE SERVER ⛏️</h1>
+    
+    <div id="status" class="status-panel disconnected">
+      SERVER OFFLINE - CLICK TO CONNECT
+    </div>
+
+    <div class="controls">
+      <button id="joinBtn" class="mc-button">
+        <span>🌍 JOIN SERVER</span>
+      </button>
+      
+      <div id="micControls" class="mic-controls">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <div class="inventory-slot">
+            <div id="micItem" class="item-microphone"></div>
+          </div>
+          <button id="micBtn" class="mc-button" style="flex: 1;">
+            <span>🎤 MIC ENABLED</span>
+          </button>
+        </div>
+        
+        <button id="leaveBtn" class="mc-button">
+          <span>🚪 LEAVE SERVER</span>
+        </button>
+        
+        <div class="health-bar">
+          <div id="volumeFill" class="health-fill"></div>
+        </div>
+        <div style="font-size: 6px; color: #AAAAAA; margin-top: 4px;">
+          VOICE ACTIVITY LEVEL
+        </div>
+      </div>
+    </div>
+
+    <div id="participants" class="participants-panel">
+      <div class="participants-title">👥 PLAYERS ONLINE</div>
+      <div id="playerList" class="player-list">
+        <div class="player">
+          <div class="player-name">
+            <div class="player-head"></div>
+            <span>Steve_Player</span>
+          </div>
+          <div class="player-status">🎤</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { joinRoom } from 'https://esm.run/trystero/torrent';
+
+    // Referencias del DOM
+    const joinBtn = document.getElementById('joinBtn');
+    const micBtn = document.getElementById('micBtn');
+    const leaveBtn = document.getElementById('leaveBtn');
+    const status = document.getElementById('status');
+    const micControls = document.getElementById('micControls');
+    const participants = document.getElementById('participants');
+    const playerList = document.getElementById('playerList');
+    const volumeFill = document.getElementById('volumeFill');
+    const micItem = document.getElementById('micItem');
+
+    // Variables globales
+    let localStream;
+    let room;
+    let audioContext;
+    let analyser;
+    let dataArray;
+    let isMicMuted = false;
+    let connectedPeers = new Set();
+
+    // Sonidos de Minecraft (simulados con beeps)
+    function playMinecraftSound(type) {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      switch(type) {
+        case 'click':
+          oscillator.frequency.value = 800;
+          gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+          break;
+        case 'connect':
+          oscillator.frequency.value = 600;
+          gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+          break;
+        case 'disconnect':
+          oscillator.frequency.value = 300;
+          gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+          break;
+      }
+      
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.5);
+    }
+
+    // Función para actualizar el estado visual
+    function updateStatus(message, type) {
+      status.textContent = message;
+      status.className = `status-panel ${type}`;
+    }
+
+    // Función para crear contexto de audio y analizador
+    function setupAudioAnalyzer() {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioContext.createAnalyser();
+      const source = audioContext.createMediaStreamSource(localStream);
+      source.connect(analyser);
+      
+      analyser.fftSize = 256;
+      const bufferLength = analyser.frequencyBinCount;
+      dataArray = new Uint8Array(bufferLength);
+      
+      updateVolumeIndicator();
+    }
+
+    // Función para actualizar el indicador de volumen
+    function updateVolumeIndicator() {
+      if (!analyser || isMicMuted) {
+        volumeFill.style.width = '0%';
+        requestAnimationFrame(updateVolumeIndicator);
+        return;
+      }
+
+      analyser.getByteFrequencyData(dataArray);
+      const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+      const percentage = (average / 255) * 100;
+      
+      volumeFill.style.width = percentage + '%';
+      requestAnimationFrame(updateVolumeIndicator);
+    }
+
+    // Función para alternar el micrófono
+    function toggleMicrophone() {
+      if (!localStream) return;
+
+      playMinecraftSound('click');
+      const audioTrack = localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        isMicMuted = !isMicMuted;
+        audioTrack.enabled = !isMicMuted;
+        
+        micBtn.innerHTML = isMicMuted ? '<span>🔇 MIC DISABLED</span>' : '<span>🎤 MIC ENABLED</span>';
+        micBtn.classList.toggle('muted', isMicMuted);
+        micItem.classList.toggle('muted', isMicMuted);
+        
+        updatePlayerList();
+      }
+    }
+
+    // Función para actualizar la lista de jugadores
+    function updatePlayerList() {
+      const playerHeadColors = ['#8B4513', '#FFE4B5', '#DDA0DD', '#98FB98', '#87CEEB'];
+      
+      playerList.innerHTML = `
+        <div class="player">
+          <div class="player-name">
+            <div class="player-head" style="background: ${playerHeadColors[0]}"></div>
+            <span>Steve_Player</span>
+          </div>
+          <div class="player-status">${isMicMuted ? '🔇' : '🎤'}</div>
+        </div>
+      `;
+      
+      let colorIndex = 1;
+      connectedPeers.forEach(peerId => {
+        const player = document.createElement('div');
+        player.className = 'player';
+        const playerName = `Player_${peerId.substr(0, 6)}`;
+        const headColor = playerHeadColors[colorIndex % playerHeadColors.length];
+        
+        player.innerHTML = `
+          <div class="player-name">
+            <div class="player-head" style="background: ${headColor}"></div>
+            <span>${playerName}</span>
+          </div>
+          <div class="player-status">🎤</div>
+        `;
+        
+        playerList.appendChild(player);
+        colorIndex++;
+      });
+    }
+
+    // Función para salir del servidor
+    function leaveServer() {
+      playMinecraftSound('disconnect');
+      
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+      }
+      
+      if (audioContext && audioContext.state !== 'closed') {
+        audioContext.close();
+      }
+      
+      if (room) {
+        room.leave();
+        room = null;
+      }
+      
+      // Limpiar elementos de audio
+      document.querySelectorAll('audio').forEach(audio => audio.remove());
+      
+      // Resetear UI
+      joinBtn.disabled = false;
+      micControls.classList.remove('show');
+      participants.classList.remove('show');
+      connectedPeers.clear();
+      isMicMuted = false;
+      micBtn.classList.remove('muted');
+      micItem.classList.remove('muted');
+      
+      updateStatus('SERVER OFFLINE - CLICK TO CONNECT', 'disconnected');
+    }
+
+    // Event listeners con sonidos de Minecraft
+    joinBtn.onclick = async () => {
+      playMinecraftSound('click');
+      
+      try {
+        updateStatus('REQUESTING MIC PERMISSIONS...', 'disconnected');
+        
+        localStream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+        
+        setupAudioAnalyzer();
+        playMinecraftSound('connect');
+        
+        joinBtn.disabled = true;
+        micControls.classList.add('show');
+        participants.classList.add('show');
+        
+        updateStatus('CONNECTING TO VOICE SERVER...', 'connected');
+        
+        // Configuración de la sala
+        const config = { appId: 'minecraft-voice-chat' };
+        room = joinRoom(config, 'minecraft-server');
+        
+        // Manejar nuevos jugadores
+        room.onPeerJoin(peerId => {
+          console.log(`New player joined: ${peerId}`);
+          playMinecraftSound('connect');
+          connectedPeers.add(peerId);
+          updatePlayerList();
+          room.addStream(localStream, peerId);
+          updateStatus(`SERVER ONLINE - ${connectedPeers.size + 1} PLAYERS`, 'connected');
+        });
+        
+        // Manejar jugadores que se van
+        room.onPeerLeave(peerId => {
+          console.log(`Player left: ${peerId}`);
+          playMinecraftSound('disconnect');
+          connectedPeers.delete(peerId);
+          updatePlayerList();
+          updateStatus(`SERVER ONLINE - ${connectedPeers.size + 1} PLAYERS`, 'connected');
+          
+          // Remover elemento de audio del jugador
+          const audioElements = document.querySelectorAll('audio');
+          audioElements.forEach(audio => {
+            if (audio.dataset.peerId === peerId) {
+              audio.remove();
+            }
+          });
+        });
+        
+        // Reproducir audio de otros jugadores
+        room.onPeerStream((stream, peerId) => {
+          console.log(`Receiving voice from: ${peerId}`);
+          const audio = document.createElement('audio');
+          audio.srcObject = stream;
+          audio.autoplay = true;
+          audio.dataset.peerId = peerId;
+          audio.style.display = 'none';
+          audio.onloadedmetadata = () => audio.play();
+          document.body.appendChild(audio);
+        });
+        
+        updateStatus('SERVER ONLINE - WAITING FOR PLAYERS...', 'connected');
+        updatePlayerList();
+        
+      } catch (err) {
+        console.error('Mic access error:', err);
+        updateStatus('ERROR: MICROPHONE ACCESS DENIED', 'disconnected');
+        joinBtn.disabled = false;
+      }
+    };
+
+    micBtn.onclick = toggleMicrophone;
+    leaveBtn.onclick = leaveServer;
+
+    // Atajos de teclado tipo Minecraft
+    document.addEventListener('keydown', (e) => {
+      if (e.key === ' ' && room) { // Espaciadora para push-to-talk
+        e.preventDefault();
+        toggleMicrophone();
+      } else if (e.key === 'Escape' && room) { // Escape para salir
+        leaveServer();
+      } else if (e.key === 'Enter' && !room) { // Enter para unirse
+        joinBtn.click();
+      }
+    });
+
+    // Efecto de clic en todos los botones
+    document.querySelectorAll('.mc-button').forEach(button => {
+      button.addEventListener('mousedown', () => {
+        if (!button.disabled) playMinecraftSound('click');
+      });
+    });
+  </script>
+
+  <script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/pwa/sw.js')
+      .then(() => console.log('Service Worker registrado'))
+      .catch((err) => console.log('Error registrando SW:', err));
+  }
+</script>
+
+</body>
+</html>
